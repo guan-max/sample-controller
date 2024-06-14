@@ -3,5 +3,5 @@ kind: Foo
 metadata:
   name: example-foo
 spec:
-  deploymentName: example-foo
+  deploymentName: example-foo # 要创建的 deployment 名称
   replicas: 1

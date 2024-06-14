@@ -10,14 +10,14 @@ spec:
   group: samplecontroller.k8s.io
   versions:
     - name: v1alpha1
-      served: true
-      storage: true
-      schema:
+      served: true # 是否被服务
+      storage: true # 是否被存储
+      schema: # 用于验证资源的模式
         # schema used for validation
-        openAPIV3Schema:
+        openAPIV3Schema: # OpenAPI v3 模式
           type: object
-          properties:
-            spec:
+          properties: # 定义资源的属性
+            spec: # 定义资源的规格
               type: object
               properties:
                 deploymentName:
@@ -26,12 +26,12 @@ spec:
                   type: integer
                   minimum: 1
                   maximum: 10
-            status:
+            status: # 定义资源的状态
               type: object
               properties:
-                availableReplicas:
+                availableReplicas: # 可用的副本数，是一个整形
                   type: integer
-  names:
+  names: # 定义资源的名称
     kind: Foo
-    plural: foos
-  scope: Namespaced
+    plural: foos # 复数形式，k8s很多操作都是使用的复数形式
+  scope: Namespaced  # 表示该资源在命名空间范围内可用

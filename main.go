@@ -38,43 +38,52 @@ var (
 )
 
 func main() {
+	// 初始化日志标志
 	klog.InitFlags(nil)
+	// 解析命令行参数
 	flag.Parse()
 
 	// set up signals so we handle the shutdown signal gracefully
 	ctx := signals.SetupSignalHandler()
 	logger := klog.FromContext(ctx)
 
+	// 初始化k8s配置
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
 	if err != nil {
 		logger.Error(err, "Error building kubeconfig")
 		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 
+	// 初始化k8s客户端
 	kubeClient, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		logger.Error(err, "Error building kubernetes clientset")
 		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 
+	// 初始化自定义资源客户端
 	exampleClient, err := clientset.NewForConfig(cfg)
 	if err != nil {
 		logger.Error(err, "Error building kubernetes clientset")
 		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 
+	// 初始化k8s和自定义资源的informer 工厂 ，一个监听普通事件，一个监听 Foo 事件
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)
 	exampleInformerFactory := informers.NewSharedInformerFactory(exampleClient, time.Second*30)
 
+	// 初始化控制器，监听 Deployment 以及 Foos 资源变化
 	controller := NewController(ctx, kubeClient, exampleClient,
 		kubeInformerFactory.Apps().V1().Deployments(),
 		exampleInformerFactory.Samplecontroller().V1alpha1().Foos())
 
+	// 启动informer工厂，使用 ctx.Done() 作为 Informer 工厂的停止信号。
 	// notice that there is no need to run Start methods in a separate goroutine. (i.e. go kubeInformerFactory.Start(ctx.done())
 	// Start method is non-blocking and runs all registered informers in a dedicated goroutine.
 	kubeInformerFactory.Start(ctx.Done())
 	exampleInformerFactory.Start(ctx.Done())
 
+	// 开始运行控制器
 	if err = controller.Run(ctx, 2); err != nil {
 		logger.Error(err, "Error running controller")
 		klog.FlushAndExit(klog.ExitFlushTimeout, 1)

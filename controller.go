@@ -70,19 +70,25 @@ type Controller struct {
 	// sampleclientset is a clientset for our own API group
 	sampleclientset clientset.Interface
 
+	// deploymentsLister is able to list/get Deployments from a shared informer's
 	deploymentsLister appslisters.DeploymentLister
+	// 用于同步 Deployment 资源的 InformerSynced 接口。
 	deploymentsSynced cache.InformerSynced
-	foosLister        listers.FooLister
-	foosSynced        cache.InformerSynced
+	// foosLister is able to list/get Foo resources from a shared informer's
+	foosLister listers.FooLister
+	// 用于同步 Foo 资源的 InformerSynced 接口。
+	foosSynced cache.InformerSynced
 
 	// workqueue is a rate limited work queue. This is used to queue work to be
 	// processed instead of performing it as soon as a change happens. This
 	// means we can ensure we only process a fixed amount of resources at a
 	// time, and makes it easy to ensure we are never processing the same item
 	// simultaneously in two different workers.
+	// 为了缓冲事件处理，这里使用队列暂存事件
 	workqueue workqueue.TypedRateLimitingInterface[string]
 	// recorder is an event recorder for recording Event resources to the
 	// Kubernetes API.
+	// 用于记录事件,将事件记录到kubernetes api中
 	recorder record.EventRecorder
 }
 
@@ -98,11 +104,15 @@ func NewController(
 	// Create event broadcaster
 	// Add sample-controller types to the default Kubernetes Scheme so Events can be
 	// logged for sample-controller types.
+	// 添加 sample-controller 类型到默认的 kubernetes scheme 中，以便事件可以被记录到 kubernetes api 中。
+	// utilruntime.Must() 是一个简化错误处理的实用函数，用于将可能出现的错误转换为恐慌（panic），以确保添加到 Scheme 中的操作成功。
 	utilruntime.Must(samplescheme.AddToScheme(scheme.Scheme))
 	logger.V(4).Info("Creating event broadcaster")
 
 	eventBroadcaster := record.NewBroadcaster(record.WithContext(ctx))
+	// 启动日志记录
 	eventBroadcaster.StartStructuredLogging(0)
+	// 启动事件记录
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeclientset.CoreV1().Events("")})
 	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: controllerAgentName})
 	ratelimiter := workqueue.NewTypedMaxOfRateLimiter(
@@ -123,6 +133,7 @@ func NewController(
 
 	logger.Info("Setting up event handlers")
 	// Set up an event handler for when Foo resources change
+	// 设置对 Foo 资源变化的事件处理函数（Add、Update 均通过 enqueueFoo 处理）
 	fooInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: controller.enqueueFoo,
 		UpdateFunc: func(old, new interface{}) {
@@ -135,6 +146,7 @@ func NewController(
 	// processing. This way, we don't need to implement custom logic for
 	// handling Deployment resources. More info on this pattern:
 	// https://github.com/kubernetes/community/blob/8cafef897a22026d42f5e5bb3f104febe7e29830/contributors/devel/controllers.md
+	// 设置对 Deployment 资源变化的事件处理函数数Add、Update、Delete 均通过 handleObject 处理
 	deploymentInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: controller.handleObject,
 		UpdateFunc: func(old, new interface{}) {
@@ -157,6 +169,7 @@ func NewController(
 // as syncing informer caches and starting workers. It will block until stopCh
 // is closed, at which point it will shutdown the workqueue and wait for
 // workers to finish processing their current work items.
+// 等待 Informer 同步完成，并发 runWorker，处理队列内事件
 func (c *Controller) Run(ctx context.Context, workers int) error {
 	defer utilruntime.HandleCrash()
 	defer c.workqueue.ShutDown()
@@ -179,6 +192,8 @@ func (c *Controller) Run(ctx context.Context, workers int) error {
 	}
 
 	logger.Info("Started workers")
+	// ctx.Done() 返回一个通道（channel），当上下文结束时，这个通道会被关闭。
+	//通过使用 <-ctx.Done()，我们可以阻塞当前 Goroutine
 	<-ctx.Done()
 	logger.Info("Shutting down workers")
 
@@ -196,6 +211,7 @@ func (c *Controller) runWorker(ctx context.Context) {
 // processNextWorkItem will read a single work item off the workqueue and
 // attempt to process it, by calling the syncHandler.
 func (c *Controller) processNextWorkItem(ctx context.Context) bool {
+	// 从队列取出待处理对象
 	obj, shutdown := c.workqueue.Get()
 	logger := klog.FromContext(ctx)
 
@@ -214,6 +230,7 @@ func (c *Controller) processNextWorkItem(ctx context.Context) bool {
 		defer c.workqueue.Done(obj)
 		// Run the syncHandler, passing it the namespace/name string of the
 		// Foo resource to be synced.
+		// 调用 syncHandler 处理
 		if err := c.syncHandler(ctx, obj); err != nil {
 			// Put the item back on the workqueue to handle any transient errors.
 			c.workqueue.AddRateLimited(obj)
@@ -240,7 +257,7 @@ func (c *Controller) processNextWorkItem(ctx context.Context) bool {
 func (c *Controller) syncHandler(ctx context.Context, key string) error {
 	// Convert the namespace/name string into a distinct namespace and name
 	logger := klog.LoggerWithValues(klog.FromContext(ctx), "resourceName", key)
-
+	// 根据 namespace/name 获取 foo 资源
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("invalid resource key: %s", key))
@@ -313,6 +330,7 @@ func (c *Controller) syncHandler(ctx context.Context, key string) error {
 		return err
 	}
 
+	// 记录事件，记录一个正常（Normal）类型的事件，类型为 SuccessSynced，消息为 MessageResourceSynced
 	c.recorder.Event(foo, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
 	return nil
 }
@@ -334,6 +352,7 @@ func (c *Controller) updateFooStatus(foo *samplev1alpha1.Foo, deployment *appsv1
 // enqueueFoo takes a Foo resource and converts it into a namespace/name
 // string which is then put onto the work queue. This method should *not* be
 // passed resources of any type other than Foo.
+// 解析 Foo 资源为 namespace/name 形式的字符串，然后入队
 func (c *Controller) enqueueFoo(obj interface{}) {
 	var key string
 	var err error
@@ -349,6 +368,7 @@ func (c *Controller) enqueueFoo(obj interface{}) {
 // objects metadata.ownerReferences field for an appropriate OwnerReference.
 // It then enqueues that Foo resource to be processed. If the object does not
 // have an appropriate OwnerReference, it will simply be skipped.
+// 监听了所有实现了 metav1 的资源，但只过滤出 owner 是 Foo 的， 将其解析为 namespace/name 入队
 func (c *Controller) handleObject(obj interface{}) {
 	var object metav1.Object
 	var ok bool
@@ -388,6 +408,9 @@ func (c *Controller) handleObject(obj interface{}) {
 // newDeployment creates a new Deployment for a Foo resource. It also sets
 // the appropriate OwnerReferences on the resource so handleObject can discover
 // the Foo resource that 'owns' it.
+// newDeployment为Foo资源创建一个新的Deployment。
+// 它还在资源上设置适当的OwnerReferences，因为 handleObject 中的筛选 Foo 资源代码是根据 Kind 值做的
+// 以便handleObject可以发现“拥有”它的Foo资源。
 func newDeployment(foo *samplev1alpha1.Foo) *appsv1.Deployment {
 	labels := map[string]string{
 		"app":        "nginx",
