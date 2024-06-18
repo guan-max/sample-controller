@@ -1,0 +1,10 @@
+apiVersion: samplecontroller.k8s.io/v1alpha1
+kind: Demo
+metadata:
+  name: demo-sample
+spec:
+  fileImage: mirrors.tencent.com/ywy_test/ywy_repository:helloworld
+  sourcePath: /lib/libcrypto.so.1.1
+  targetHost: node-3
+  targetPath: /mnt
+

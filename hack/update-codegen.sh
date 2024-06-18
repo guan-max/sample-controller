@@ -19,9 +19,11 @@ set -o nounset
 set -o pipefail
 
 SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
-CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${SCRIPT_ROOT}"; ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../code-generator)}
-
+# CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${SCRIPT_ROOT}"; ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../code-generator)}
+CODEGEN_PKG="/Users/guan/go/pkg/mod/k8s.io/code-generator@v0.30.2"
+# CODEGEN_PKG="/Users/guan/go/pkg/mod/k8s.io/code-generator@v0.0.0-20240611005046-3a49e5b429ad"
 source "${CODEGEN_PKG}/kube_codegen.sh"
+
 
 THIS_PKG="k8s.io/sample-controller"
 
@@ -35,3 +37,5 @@ kube::codegen::gen_client \
     --output-pkg "${THIS_PKG}/pkg/generated" \
     --boilerplate "${SCRIPT_ROOT}/hack/boilerplate.go.txt" \
     "${SCRIPT_ROOT}/pkg/apis"
+
+

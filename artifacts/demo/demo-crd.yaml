@@ -1,0 +1,43 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: demos.samplecontroller.k8s.io
+  annotations:
+    "api-approved.kubernetes.io": "unapproved, experimental-only; please get an approval from Kubernetes API reviewers if you're trying to develop a CRD in the *.k8s.io or *.kubernetes.io groups"
+spec:
+  group: samplecontroller.k8s.io
+  versions:
+    - name: v1alpha1
+      served: true # 是否被服务
+      storage: true # 是否被存储
+      schema: # 用于验证资源的模式
+        openAPIV3Schema: # OpenAPI v3 模式
+          type: object
+          properties: # 定义资源的属性
+            spec: # 定义
+             type: object
+             properties:
+               fileImage:
+                 type: string
+               sourcePath:
+                 type: string
+               targetHost:
+                 type: string
+               targetPath:
+                 type: string
+            status:
+              type: object
+              properties:
+                copyStatus:
+                  type: string
+                  enum: [ "Pending", "InProgress", "Completed", "Failed" ]
+                copyDescription:
+                  type: string
+
+
+  names: # 定义资源的名称
+     kind: Demo
+     plural: demos
+     singular: demo
+  scope: Namespaced
+
